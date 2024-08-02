@@ -50,6 +50,7 @@ if (isMobile) {
 }
 else {
   startStopButton.addEventListener('click', startStop);
+  document.querySelector("#mobile-rec").style['display'] = 'block';
 }
 
 // p5.js init
