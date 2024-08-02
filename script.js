@@ -1,8 +1,7 @@
-// let maxX = 400;
 let maxX;
-// let maxY = 400;
 let maxY;
 let isStarted = false;
+let isFinished = false; // finishes once time runs out
 let startTimeMs;
 
 let slider;
@@ -15,19 +14,20 @@ let timePercent = 0;
 
 // tone.js objects
 let meanSynth, niceSynth;
-let dist;
-let revEffect;
+let dist, revEffect, gain;
+
 
 // how long should the walk be and what's the max speed?
-let walkTimeSec = 300;
-let maxMph = 6;
+let walkTimeSec = 60;
+let maxMph = 4;
 
-// note sequences
-const niceNotes = ["C3", "E4", "G4", "C5", "E5"];
-const meanNotes = ["C2", "E#4", "Ab4", "E3"];
+
+let tonic;
+let niceNotes;
+let meanNotes;
 
 // store most recent lat/longs in a circular buffer
-let lastPositions = new CBuffer(10);
+let lastPositions = new CBuffer(6);
 let lat = 0;
 let long = 0;
 let mph = 0.0;
@@ -40,22 +40,32 @@ let circles = [];
 
 let audioContext = new AudioContext();
 
+let isMobile = /Mobi|Android|iPhone/i.test(navigator.userAgent);
+
 let startStopButton = document.querySelector("#start-stop-button");
-if (/Mobi|Android|iPhone/i.test(navigator.userAgent)) {
-   startStopButton.addEventListener('touchend', startStop); 
+if (isMobile) {
+  // not sure if this is necessary but read that ios can have trouble initializing
+  // the audio context after a click so use touchend instead...
+  startStopButton.addEventListener('touchend', startStop); 
 }
 else {
   startStopButton.addEventListener('click', startStop);
 }
 
+// p5.js init
 function setup() {
   maxX = windowWidth;
   maxY = windowHeight;
-  createCanvas(maxX, maxY);
+  let canvas = createCanvas(maxX, maxY);
+  canvas.parent('sketch-container');
+  
   volume = 0;
-
   debugCheckbox = createCheckbox("debug?");
   debugCheckbox.position(10);
+  
+  tonic = getTonic();
+  niceNotes = getNiceNotes(tonic);
+  meanNotes = getMeanNotes(tonic);
 
   const canvasTop = document
     .getElementsByTagName("canvas")[0]
@@ -81,9 +91,21 @@ function setup() {
   }
 }
 
+// p5.js loop
 function draw() {
   background("white");
   colorMode(HSB);
+  
+  let remainingSec = Math.floor(walkTimeSec - elapsedSec);
+  if (remainingSec <= 0) {
+    if (!isFinished) {
+      isFinished = true;
+      let body = document.querySelector("body").classList.add('fade-out');
+      stop(); // stop audio and geo
+    }
+    niceSynth.volume.value = -20;
+  }
+  
 
   if (debugCheckbox.checked() && !isDebugMode) {
     timeSlider.show();
@@ -111,7 +133,7 @@ function draw() {
   // Calculate a relax percent based on both time elapsed
   // and speed of movement.
   // As long as the user is moving,
-  // chromatic sequence should reduce in volume, the amount of
+  // the mean sequence should reduce in volume, the amount of
   // distortion should go down, and the bpm should slow down.
   let relaxPercent = 0.0;
   if (speedPercent <= 0.1) {
@@ -128,11 +150,11 @@ function draw() {
     }
   }
 
-  let distortLevel = map(relaxPercent, 0, 1.0, 0.9, 0.01);
+  let distortLevel = map(relaxPercent, 0, 1.0, 0.9, 0.2);
   let meanVolLevel = map(relaxPercent, 0, 1.0, 0, -30);
   let bpm = map(timePercent, 0, 1.0, 160, 60);
 
-  if (isStarted) {
+  if (isStarted && timePercent < 1) {
     dist.distortion = distortLevel;
     meanSynth.volume.value = meanVolLevel;
     Tone.getTransport().bpm.value = bpm;
@@ -148,11 +170,10 @@ function draw() {
     // console.log(`relaxPercent=${relaxPercent}, wiggle:=${wiggleAmount}`);
     // console.log('hi!')
 
+   
     let numCircles = map(relaxPercent, 0, 1.5, circles.length, 0);
-    
     for (let c = 0; c < numCircles; c++) {
       // Draw a circle, with hue determined by frameCount
-      
       fill((f/3) + c, saturation, 90);
       circle(circles[c].x, circles[c].y, circles[c].size);
       circles[c] = {
@@ -161,9 +182,8 @@ function draw() {
         size: circles[c].size + random(-1,1),
       }
     }
-    // Increase the x variable by 5
     f += 5;
-    if (f > 360) {
+    if (f > 360) { // reset framecounter
       f = 0;
     }
   }
@@ -177,6 +197,10 @@ function draw() {
     text(`relaxPercent: ${relaxPercent}`, 10, 210);
     text(`distortion: ${distortLevel}`, 10, 222);
   }
+  
+  document.querySelector("#mph").innerHTML = `mph: ${mph}`;
+  document.querySelector("#timeLeft").innerHTML = `timeLeft: ${remainingSec}s`;
+
 }
 
 function startStop() {
@@ -184,7 +208,6 @@ function startStop() {
     audioContext.resume();
     Tone.getTransport().start();
   }
-  
   
   if (!isStarted) {
     initGeo();
@@ -196,7 +219,7 @@ function startStop() {
       setTimeout(function() {
         console.log("waiting for audio context")
         initSound();
-      }, 3000);
+      }, 1000);
     }
     else {
       initSound();
@@ -254,10 +277,10 @@ let geoHandlerId;
 const initSound = async () => {
   console.log(`entered initSound - Tone.context.state: ${Tone.context.state}, audioContext.state: ${audioContext.state}`)
 
-  // await Tone.start();
   // create two monophonic synths
+  gain = new Tone.Gain(0).toDestination();
   niceSynth = new Tone.AMSynth().toDestination();
-  revEffect = new Tone.Reverb(0.5).toDestination();
+  revEffect = new Tone.Reverb(0.7).toDestination();
   niceSynth.connect(revEffect);
 
   meanSynth = new Tone.AMSynth().toDestination();
@@ -284,7 +307,7 @@ const initSound = async () => {
 
   Tone.getTransport().start();
   isStarted = true;
-
+  
 };
 
 function initGeo() {
@@ -300,4 +323,43 @@ function stop() {
     navigator.geolocation.clearWatch(geoHandlerId);
   }
   Tone.getTransport().stop();
+  console.log("stopped Tone.js");
+}
+
+function getTonic() {
+  let note = random(Tonal.Note.names());
+  return addRandomAccidental(note);
+}
+
+function addRandomAccidental(note) {
+  let accidental = random(["", "#", "b"]);
+  if ((accidental === '#' && ["B", "E"].includes(note))
+     || (accidental === 'b' && ["C", "F"].includes(note))) {
+    return note;
+  }
+  return note + accidental;
+}
+
+function getNiceNotes(tonic) {
+  let notes = [1, 3, 5, 8]
+    .map(Tonal.Scale.degrees(tonic + " major"));
+  
+  notes[0] = notes[0] + "3";
+  notes[1] = notes[1] + "3";
+  notes[2] = notes[2] + "3";
+  notes[3] = notes[3] + "4"; // one octave higher
+  
+  console.log(`niceNotes: ${notes}`);
+  return notes;
+}
+
+function getMeanNotes(tonic) {
+  let notes = [1, 3, 2, 8, 3, 5, 4]
+    .map(Tonal.Scale.degrees(tonic + " minor"))
+    .map((note) => note + random(["2","3","4"]));
+  
+  notes = shuffle(notes);
+
+  console.log(`mean notes: ${notes}`)
+  return notes;
 }

@@ -8,10 +8,11 @@
     <title>a walk to clear your mind</title>
 
     <link rel="stylesheet" href="/style.css" />
-		<script src="https://unpkg.com/tone"></script>
-    <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@7/turf.min.js"></script>
+		<script src="/Tone.15.0.4.js"></script>
+    <script src="/p5-1.9.4.min.js"></script>
+    <script src="/turf.7.min.js"></script>
     <script src="/cbuffer.js"></script>
+    <script src="/tonal.min.js"></script>
     <script src="/script.js" defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -22,12 +23,16 @@
       <div class="content" role="main">
         <h1 class="title">a walk to clear your mind</h1>
         <button id="start-stop-button">
-          start / stop
+          start walking / stop
         </button>
         <br>
         <br>
         <br>
       </div>
     </div>
+    <div id="sketch-container">
+    </div>
+    <p id="mph"></p>
+    <p id="timeLeft"></p>
   </body>
 </html>
