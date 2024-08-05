@@ -214,13 +214,14 @@ function startStop() {
     initGeo();
     
     if (audioContext.state !== 'running') {
+      // on ios, sometimes it takes a few hundred ms for the audiocontext to be ready
       console.log(`startStopClicked() - Tone.context.state: ${Tone.context.state}`)
       console.log(`startStopClicked() - audioContext.state: ${audioContext.state}`)
 
       setTimeout(function() {
         console.log("waiting for audio context")
         initSound();
-      }, 1000);
+      }, 500);
     }
     else {
       initSound();
@@ -228,9 +229,9 @@ function startStop() {
     startTimeMs = Date.now();
     
     console.log(`end of startStopClicked() - Tone.context.state: ${Tone.context.state}`)
+    document.querySelector("#start-stop-button").innerHTML = "stop";
   } else {
     stop();
-    // context.suspend();
   }
 }
 

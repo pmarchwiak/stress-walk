@@ -2,7 +2,13 @@ body {
   font-family: "Cutive Mono", monospace;
   font-weight: 400;
   font-style: normal;
+  text-align: center;
 }
+
+button {
+  font-size: 1.3em;
+  padding: 2px;
+} 
 
 .fade-out {
   visibility: hidden;

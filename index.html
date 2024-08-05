@@ -8,34 +8,34 @@
     <title>a walk to clear your mind</title>
 
     <link rel="stylesheet" href="/style.css" />
-		<script src="/Tone.15.0.4.js"></script>
+    <script src="/Tone.15.0.4.js"></script>
     <script src="/p5-1.9.4.min.js"></script>
     <script src="/turf.7.min.js"></script>
     <script src="/cbuffer.js"></script>
     <script src="/tonal.min.js"></script>
     <script src="/script.js" defer></script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cutive+Mono&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cutive+Mono&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div class="wrapper">
       <div class="content" role="main">
         <h1 class="title">a walk to clear your mind</h1>
-        <button id="start-stop-button">
-          stand up and go for a walk
-        </button>
-        <br>
-        <p id="mobile-rec" class="blink" style="display:none">
+        <div id="button-container">
+          <button id="start-stop-button">stand up and go for a walk</button>
+        </div>
+        <br />
+        <p id="mobile-rec" class="blink" style="display: none">
           a mobile device is recommended for the full experience
         </p>
-        <br>
-        <br>
-        <br>
+        <br />
       </div>
     </div>
-    <div id="sketch-container">
-    </div>
+    <div id="sketch-container"></div>
     <p id="mph"></p>
     <p id="timeLeft"></p>
   </body>
