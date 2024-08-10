@@ -2,6 +2,7 @@ let maxX;
 let maxY;
 let isStarted = false;
 let isFinished = false; // finishes once time runs out
+let isStopped = false; // stop button was clicked
 let startTimeMs;
 
 let slider;
@@ -9,6 +10,7 @@ let timeSlider;
 let mphSlider;
 let debugCheckbox;
 let isDebugMode = false;
+let debugX, debugY; // positioning for debugging elems
 
 let timePercent = 0;
 
@@ -26,15 +28,15 @@ let tonic;
 let niceNotes;
 let meanNotes;
 
-// store most recent lat/longs in a circular buffer
-let lastPositions = new CBuffer(6);
+// store most recent lat/longs in a circular buffer for speed calc
+let lastPositions = new CBuffer(4);
 let lat = 0;
 let long = 0;
 let mph = 0.0;
 let elapsedSec = 0;
 let relaxPercent = 0.0; // 0 is not at all, 100 is done
 
-let f = 25;
+let hueCounter = 25;
 
 let circles = [];
 
@@ -62,7 +64,9 @@ function setup() {
   
   volume = 0;
   debugCheckbox = createCheckbox("debug?");
-  debugCheckbox.position(10);
+  debugCheckbox.position(10, windowHeight - 40);
+  debugX = debugCheckbox.position().x;
+  debugY = debugCheckbox.position().y - 260;
   
   tonic = getTonic();
   niceNotes = getNiceNotes(tonic);
@@ -74,12 +78,12 @@ function setup() {
 
   timeSlider = createSlider(0, walkTimeSec, 0); // seconds
   timeSlider.hide();
-  timeSlider.position(10, canvasTop + 10);
+  timeSlider.position(debugX, debugY);
   timeSlider.size(80);
 
   mphSlider = createSlider(0, maxMph, 0); // mph
   mphSlider.hide();
-  mphSlider.position(10, canvasTop + 50);
+  mphSlider.position(debugX, debugY + 30);
   mphSlider.size(80);
 
   let numCircles = 100;
@@ -97,8 +101,9 @@ function draw() {
   background("white");
   colorMode(HSB);
   
+  // check if time has run out
   let remainingSec = Math.floor(walkTimeSec - elapsedSec);
-  if (remainingSec <= 0) {
+  if (remainingSec <= 0 || isStopped) {
     if (!isFinished) {
       isFinished = true;
       let body = document.querySelector("body").classList.add('fade-out');
@@ -107,7 +112,7 @@ function draw() {
     niceSynth.volume.value = -20;
   }
   
-
+  // show the time and mph sliders if in debug mode
   if (debugCheckbox.checked() && !isDebugMode) {
     timeSlider.show();
     mphSlider.show();
@@ -118,64 +123,67 @@ function draw() {
     isDebugMode = false;
   }
 
-  // determine
+  // determine how much time is left
   if (!isDebugMode) {
     elapsedSec = (Date.now() - startTimeMs) / 1000;
   } else {
     elapsedSec = timeSlider.value();
   }
-  timePercent = map(elapsedSec, 0, walkTimeSec, 0, 1.0);
+  timePercent = map(elapsedSec, 0, walkTimeSec, 0, 100);
 
+  // if debug mode, read the speed from the slider.
+  // otherwise it'll get updated in the geoLocation callback
   if (isDebugMode) {
     mph = mphSlider.value();
   }
-  let speedPercent = map(mph, 0, maxMph, 0, 1.0);
+  let speedPercent = map(mph, 0, maxMph, 0, 100);
 
   // Calculate a relax percent based on both time elapsed
   // and speed of movement.
   // As long as the user is moving,
   // the mean sequence should reduce in volume, the amount of
   // distortion should go down, and the bpm should slow down.
-  let relaxPercent = 0.0;
-  if (speedPercent <= 0.1) {
-    // if the user is not moving
-    relaxPercent = 0.0;
-  } else {
-    if (timePercent < 0.33) {
-      relaxPercent += 0.33 * speedPercent + timePercent;
-    } else if (timePercent >= 0.33 && timePercent <= 0.66) {
-      relaxPercent += 0.66 * speedPercent + timePercent;
-    } else {
-      // getting close to the end
-      relaxPercent += 0.8 * speedPercent + timePercent;
-    }
+  let relaxPercent = 0;
+  // if (speedPercent <= 10) {
+  //   // if the user is not moving
+  //   relaxPercent = 0;
+  // } else {
+  
+  relaxPercent = (.5 * speedPercent) + (.5 * timePercent);
+  
+  if (timePercent > 50) {
+    relaxPercent = (.3 * speedPercent) + (.7 * timePercent);
   }
+//   if (timePercent < 0.33) {
+//     relaxPercent = (.5 * speedPercent) + (.5 * timePercent);
+//   } else if (timePercent >= 0.33 && timePercent <= 0.66) {
+//     relaxPercent = timePercent + 
+//   } else {
+//     // getting close to the end
+//     relaxPercent += 0.8 * speedPercent + timePercent;
+  
+//   }
 
-  let distortLevel = map(relaxPercent, 0, 1.0, 0.9, 0.2);
-  let meanVolLevel = map(relaxPercent, 0, 1.0, 0, -30);
-  let bpm = map(timePercent, 0, 1.0, 160, 60);
+  let distortLevel = map(relaxPercent, 0, 100, 0.9, 0.2);
+  let meanVolLevel = map(relaxPercent, 0, 100, 0, -30);
+  let bpm = map(timePercent, 0, 100, 160, 60);
 
-  if (isStarted && timePercent < 1) {
+
+  
+  if (isStarted && timePercent < 100) {
     dist.distortion = distortLevel;
     meanSynth.volume.value = meanVolLevel;
     Tone.getTransport().bpm.value = bpm;
 
-    if (isDebugMode) {
-      text(`volume: ${meanVolLevel}`, 10, 240);
-      text(`bpm: ${Tone.getTransport().bpm.value}`, 10, 260);
-      text(`distortion: ${distortLevel}`, 10, 222);
-    }
-
-    let saturation = map(relaxPercent, 0, 2, 100, 20);
-    let wiggleAmount = map(relaxPercent, 0, 2, 3, 0);
-    // console.log(`relaxPercent=${relaxPercent}, wiggle:=${wiggleAmount}`);
-    // console.log('hi!')
+    let saturation = map(relaxPercent, 0, 100, 100, 20);
+    let brightness = map(relaxPercent, 0, 100, 100, 80);
+    let wiggleAmount = map(relaxPercent, 0, 100, 3, 0);
 
    
-    let numCircles = map(relaxPercent, 0, 1.5, circles.length, 0);
+    let numCircles = map(relaxPercent, 0, 100, circles.length, 0);
     for (let c = 0; c < numCircles; c++) {
       // Draw a circle, with hue determined by frameCount
-      fill((f/3) + c, saturation, 90);
+      fill((hueCounter/3) + c, saturation, brightness);
       circle(circles[c].x, circles[c].y, circles[c].size);
       circles[c] = {
         x: circles[c].x + random(-wiggleAmount, wiggleAmount),
@@ -183,25 +191,37 @@ function draw() {
         size: circles[c].size + random(-1,1),
       }
     }
-    f += 5;
-    if (f > 360) { // reset framecounter
-      f = 0;
+    
+    if (isDebugMode) {
+      fill("black");
+      textSize(20);
+      text(`meanVol: ${meanVolLevel}`, debugX, debugY + 30*3);
+      text(`bpm: ${Tone.getTransport().bpm.value}`, debugX, debugY + 30*4);
+      text(`distortion: ${distortLevel}`, debugX, debugY + 30*5);
+    }
+    
+    hueCounter += (relaxPercent < 60 ? 10 : 3); // slow down color changing
+    if (hueCounter > 360) { // reset framecounter
+      hueCounter = 0;
     }
   }
 
   if (isDebugMode) {
-    text("lat:" + lat, 10, maxY - 40);
-    text("long:" + long, 10, maxY - 20);
-    text(`speedPercent: ${speedPercent}`, 10, 280);
-    text(`timePercent: ${timePercent}`, 100, 20);
-    text(`mph: ${mph}`, 100, 60);
-    text(`relaxPercent: ${relaxPercent}`, 10, 210);
-    text(`distortion: ${distortLevel}`, 10, 222);
+    fill("black");
+    
+    // relative to sliders
+    text(`timePercent: ${timePercent}`, timeSlider.position().x + 100, timeSlider.position().y + 15);
+    text(`mph: ${mph}`, mphSlider.position().x + 100, mphSlider.position().y + 15);
+    
+    
+    text(`lat: ${lat}, long: ${long}`, debugX, debugY + 30*6);
+    text(`speedPercent: ${speedPercent}, relaxPercent: ${relaxPercent}`, debugX, debugY + 30*7);
   }
   
   document.querySelector("#mph").innerHTML = `mph: ${mph}`;
-  document.querySelector("#timeLeft").innerHTML = `timeLeft: ${remainingSec}s`;
-
+  if (!isNaN(remainingSec)) {
+    document.querySelector("#timeLeft").innerHTML = `timeLeft: ${remainingSec <= 0 ? 'all of it' : remainingSec + 's'}`;
+  }
 }
 
 function startStop() {
@@ -215,9 +235,9 @@ function startStop() {
     
     if (audioContext.state !== 'running') {
       // on ios, sometimes it takes a few hundred ms for the audiocontext to be ready
+      // try again a little later
       console.log(`startStopClicked() - Tone.context.state: ${Tone.context.state}`)
       console.log(`startStopClicked() - audioContext.state: ${audioContext.state}`)
-
       setTimeout(function() {
         console.log("waiting for audio context")
         initSound();
@@ -228,11 +248,14 @@ function startStop() {
     }
     startTimeMs = Date.now();
     
-    console.log(`end of startStopClicked() - Tone.context.state: ${Tone.context.state}`)
+    console.log(`end of startStop() - Tone.context.state: ${Tone.context.state}`)
     document.querySelector("#start-stop-button").innerHTML = "stop";
   } else {
     stop();
   }
+  
+  document.querySelector("#mobile-rec").style['display'] = 'none';
+
 }
 
 // called every time geolocation provides an update
@@ -326,6 +349,7 @@ function stop() {
   }
   Tone.getTransport().stop();
   console.log("stopped Tone.js");
+  isStopped = true;
 }
 
 function getTonic() {
