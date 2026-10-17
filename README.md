@@ -1,5 +1,7 @@
 # a walk to clear your mind
 
+live at https://pmarchwiak.github.io/stress-walk/
+
 This piece is meant to be experienced on a mobile device
 while the user goes for a walk.
 
@@ -17,3 +19,7 @@ and apis for this piece.
 i used tone.js for creating the synthesized sounds, sequencing, and mixing. 
 i used tonal to select notes that fit into scales. 
 i used turf.js to calculate the user's movement speed.
+
+created as part of the musical web class at school for poetic computation.
+
+see also: https://marchwiak.com/musicalweb.html
